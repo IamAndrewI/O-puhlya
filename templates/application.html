@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Приложение</title>
+    <style>
+        body {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            font-family: Arial, sans-serif;
+            background-color: #d9f7be;
+            position: relative;
+        }
+
+        #image-display {
+            width: 500px;
+            height: 500px;
+            border: 1px solid #ccc;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 20px;
+            background-color: white;
+            border-radius: 5px;
+        }
+
+        #output {
+            margin-top: 20px;
+            width: 300px;
+            height: 100px;
+            border: 1px solid #ccc;
+            padding: 10px;
+            overflow-y: auto;
+            background-color: white;
+            border-radius: 5px;
+        }
+
+        button {
+            margin: 5px;
+            padding: 10px 20px;
+            font-size: 16px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+
+            button:hover {
+                background-color: #45a049;
+            }
+
+        #user-info {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            text-align: right;
+        }
+
+        /* Модальное окно */
+        #modal {
+            display: none;
+            position: fixed;
+            z-index: 1;
+            left: 0;
+            top: 0;
+            width: auto;
+            height: 100%;
+            overflow: auto;
+            background-color: rgb(0,0,0);
+            background-color: rgba(0,0,0,0.4);
+            padding-top: 60px;
+        }
+
+        #modal-content {
+            background-color: #fefefe;
+            margin: 5% auto;
+            padding: 20px;
+            border: 1px solid #888;
+            width: auto;
+        }
+
+        .close {
+            color: #aaa;
+            float: right;
+            font-size: 28px;
+            font-weight: bold;
+        }
+
+            .close:hover,
+            .close:focus {
+                color: black;
+                text-decoration: none;
+                cursor: pointer;
+            }
+
+        #user-id-selection {
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="user-info">
+        <div id="user-name">Гость</div>
+        <div id="user-profession"></div>
+        <button id="logout-button">Выход</button>
+    </div>
+
+    <div id="image-display">Изображение не загружено</div>
+
+    <input type="file" id="image-input" accept="image/*" style="display: none;">
+    <button id="upload-button">Загрузить изображение</button>
+    <button id="scan-button">Сканировать</button>
+    <button id="generate-report-button" style="display: none;">Сгенерировать отчет</button>
+    <div id="output">Результаты сканирования появятся здесь...</div>
+
+    <!-- Модальное окно -->
+    <div id="modal">
+        <div id="modal-content">
+            <span class="close">&times;</span>
+            <h2>Выберите способ загрузки изображения</h2>
+            <button id="upload-from-computer">Загрузить с компьютера</button>
+            <button id="upload-from-db">Загрузить из базы данных</button>
+            <div id="user-id-selection" style="display: none;">
+                <h3>Выберите пользователя:</h3>
+                <select id="user-id-select"></select>
+                <button id="confirm-upload-db">Загрузить</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function fetchUserInfo() {
+            fetch('/api/get_user_info')
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('Ошибка получения информации о пользователе');
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    console.log('Response from server:', data);
+                    if (data.status === 'success') {
+                        updateUserInfo(false, data.data);
+                    } else {
+                        updateUserInfo(true, null);
+                    }
+                })
+                .catch(error => {
+                    console.error('Ошибка:', error);
+                    updateUserInfo(true, null);
+                });
+        }
+
+        function updateUserInfo(isGuest, userProfile) {
+            const userNameElement = document.getElementById('user-name');
+            const userProfessionElement = document.getElementById('user-profession');
+            const generateReportButton = document.getElementById('generate-report-button');
+            if (isGuest) {
+                userNameElement.textContent = 'Гость';
+                userProfessionElement.textContent = '';
+                generateReportButton.style.display = 'none';
+            } else {
+                userNameElement.textContent = userProfile[0] + ' ' + userProfile[1]; // Фамилия Имя
+                userProfessionElement.textContent = userProfile[2]; // Профессия
+                generateReportButton.style.display = 'block';
+            }
+        }
+
+        document.getElementById('generate-report-button').addEventListener('click', () => {
+            const patientId = Patien; // ID пациента
+            const scanResult = resu; // результат сканирования
+            const imagePath = `/static/result_image.jpg`; // изображение, полученное в результате сканирования
+
+            fetch('/api/generate_report', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ patient_id: patientId, scan_result: scanResult, image_path: imagePath })
+            })
+                .then(response => {
+                    if (response.ok) {
+                        return response.blob(); // Получаем PDF как Blob
+                    } else {
+                        throw new Error('Ошибка при генерации отчета');
+                    }
+                })
+                .then(blob => {
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.style.display = 'none';
+                    a.href = url;
+                    a.download = `report_${patientId}.pdf`; // Укажите имя файла
+                    document.body.appendChild(a);
+                    a.click();
+                    window.URL.revokeObjectURL(url);
+                })
+                .catch(error => {
+                    console.error('Ошибка:', error);
+                });
+        });
+        const uploadButton = document.getElementById('upload-button');
+        const imageInput = document.getElementById('image-input');
+        const imageDisplay = document.getElementById('image-display');
+        const modal = document.getElementById('modal');
+        const closeModal = document.getElementsByClassName("close")[0];
+        const uploadFromDbButton = document.getElementById('upload-from-db');
+        const userIdSelection = document.getElementById('user-id-selection');
+        const userIdSelect = document.getElementById('user-id-select');
+        const confirmUploadDbButton = document.getElementById('confirm-upload-db');
+        let flag1 = false;
+        let flag2 = false;
+        let uploadedImageFile = null;
+        let Patien = null;
+        let resu = null;
+
+        uploadButton.addEventListener('click', () => {
+            const isGuest = document.getElementById('user-name').textContent === 'Гость';
+            if (isGuest) {
+                imageInput.click();
+            } else {
+                modal.style.display = "block"; // Показать модальное окно
+            }
+        });
+
+        closeModal.onclick = () => {
+            modal.style.display = "none";
+            userIdSelection.style.display = "none"; // Скрыть выбор ID
+        };
+
+        window.onclick = (event) => {
+            if (event.target == modal) {
+                modal.style.display = "none";
+                userIdSelection.style.display = "none"; // Скрыть выбор ID
+            }
+        };
+
+        // Обработчик для кнопки "Загрузить с компьютера"
+        document.getElementById('upload-from-computer').addEventListener('click', () => {
+            imageInput.click(); // Вызываем клик на скрытом input
+            modal.style.display = "none";
+        });
+
+        uploadFromDbButton.addEventListener('click', () => {
+            fetchPatients();  // Запрос списка пациентов
+            userIdSelection.style.display = "block"; // Показать выбор ID
+        });
+
+        function fetchPatients() {
+            fetch('/api/get_patients')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'success') {
+                        userIdSelect.innerHTML = ''; // Очистить предыдущие записи
+                        data.data.forEach(patient => {
+                            const option = document.createElement('option');
+                            option.value = patient[0]; // patient[0] - ID пациента
+                            option.textContent = `${patient[0]} ${patient[1]} ${patient[2]}`; // patient[1] - имя, patient[2] - фамилия
+                            userIdSelect.appendChild(option);
+                        });
+                    } else {
+                        console.error(data.message);
+                    }
+                })
+                .catch(error => console.error('Ошибка:', error));
+        }
+
+        confirmUploadDbButton.addEventListener('click', () => {
+            const selectedPatientId = userIdSelect.value;
+            Patien = selectedPatientId;
+            uploadImageFromDb(selectedPatientId); // Вызываем функцию загрузки изображения из базы данных
+            modal.style.display = "none"; // Закрываем модальное окно после загрузки
+
+        });
+
+        async function uploadImageFromDb(patientId) {
+            const imageUrl = `/api/get_scan?patient_id=${patientId}`;
+
+            try {
+                const response = await fetch(imageUrl);
+                const data = await response.json();
+                console.log('Response data:', data);
+
+                if (data.status === 'success') {
+                    const imagePath = data.image_path; // Убедитесь, что это правильный путь
+                    displayImage(imagePath);
+                    flag2 = true;
+                    flag1 = false;
+
+                    // Получаем файл изображения
+                    uploadedImageFile = await getFileFromImagePath(imagePath);
+                } else {
+                    output.textContent = 'Ошибка загрузки изображения из базы данных: ' + data.message;
+                }
+            } catch (error) {
+                console.error('Ошибка:', error);
+                output.textContent = 'Произошла ошибка при загрузке изображения.';
+            }
+        }
+
+        async function getFileFromImagePath(imagePath) {
+            try {
+                const response = await fetch(imagePath);
+
+                if (!response.ok) {
+                    throw new Error('Ошибка при загрузке изображения: ' + response.statusText);
+                }
+
+                const blob = await response.blob();
+                const fileName = imagePath.split('/').pop(); // Получаем имя файла из пути
+
+                // Создаем объект File
+                const file = new File([blob], fileName, {
+                    lastModified: Date.now(),
+                    type: blob.type // Указываем тип файла из Blob
+                });
+
+                return file;
+            } catch (error) {
+                console.error('Ошибка при получении файла:', error);
+                throw error; // Пробрасываем ошибку дальше
+            }
+        }
+
+        function displayImage(imagePath) {
+            const imgElement = document.createElement('img');
+            imgElement.src = imagePath; // Устанавливаем путь к изображению
+            imgElement.alt = 'Изображение пациента';
+            imgElement.style.maxWidth = '100%';
+            imgElement.style.maxHeight = '100%';
+            document.getElementById('image-display').innerHTML = ''; // Очищаем предыдущее изображение
+            document.getElementById('image-display').appendChild(imgElement); // Добавляем изображение в контейнер
+        }
+
+        imageInput.addEventListener('change', (event) => {
+            let file = event.target.files[0];
+            if (file) {
+                flag1 = true;
+                flag2 = false;
+                const reader = new FileReader();
+                reader.onload = function (e) {
+                    imageDisplay.innerHTML = `<img src="${e.target.result}" alt="Изображение" style="max-width: 100%; max-height: 100%;">`;
+                };
+                reader.readAsDataURL(file);
+            }
+        });
+
+        const scanButton = document.getElementById('scan-button');
+        const output = document.getElementById('output');
+
+        scanButton.addEventListener('click', () => {
+
+
+            let file = imageInput.files[0];
+            if (!flag1 & !flag2) {
+                output.textContent = 'Пожалуйста, загрузите изображение перед сканированием.';
+                return;
+            }
+            if (flag2) { file = uploadedImageFile; }
+            else { file = imageInput.files[0]; }
+            console.log('Значение переменной x:', file);
+            const formData = new FormData();
+            formData.append('image', file);
+
+            fetch('/scan', {
+                method: 'POST',
+                body: formData
+            })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.result && data.result.image_path) {
+                        // Обновляем изображение в окне
+                        const imagePath = `/static/${data.result.image_path}?t=${new Date().getTime()}`; // Добавляем временную метку
+                        imageDisplay.innerHTML = `<img src="${imagePath}" alt="Результат сканирования" style="max-width: 100%; max-height: 100%;">`;
+                        output.textContent = 'Сканирование завершено. Результаты: ' + data.result.details; // Если есть дополнительные детали
+                        resu = data.result.details;
+                    } else {
+                        output.textContent = 'Сканирование завершено. Результаты: ' + data.result;
+                        resu = data.result;
+                    }
+                })
+                .catch(error => {
+                    console.error('Ошибка:', error);
+                    output.textContent = 'Произошла ошибка при сканировании.';
+                });
+        });
+
+        const logoutButton = document.getElementById('logout-button');
+        logoutButton.addEventListener('click', () => {
+            fetch('/logout')
+                .then(response => {
+                    if (response.redirected) {
+                        window.location.href = response.url;
+                    }
+                })
+                .catch(error => console.error('Ошибка при выходе:', error));
+        });
+
+        window.onload = fetchUserInfo;
+
+    </script>
+
+</body>
+</html>
